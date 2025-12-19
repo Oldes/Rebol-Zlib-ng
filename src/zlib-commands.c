@@ -376,7 +376,7 @@ COMMAND cmd_decompress(RXIFRM *frm, void *ctx) {
 }
 
 
-static make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBits, int strategy) {
+static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBits, int strategy) {
 	REBINT result;
 	REBINT level = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : 6;
 
