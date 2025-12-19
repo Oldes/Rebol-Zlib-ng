@@ -1,0 +1,217 @@
+;-    .-.                                                                       
+;-   /'v'\   SISKIN-Builder 3.9.0 project file                                  
+;-  (/uOu\)  https://github.com/Siskin-framework/Builder/                       
+;-===="="=======================================================================
+
+github: zlib-ng/zlib-ng 2.3.2
+
+
+version: 2.3.2
+
+compiler: clang
+arch:     x64
+optimize: 2
+
+;define: USE_TRACES
+
+;- options common for all Rebol extensions ----------------------
+#if Windows? [
+	define: _CRT_SECURE_NO_WARNINGS
+	define: _USE_MATH_DEFINES
+	define: TO_WINDOWS
+]
+#if Linux? [
+	compiler: gcc
+]
+target-x86: [
+	arch: x86
+]
+target-x64: [
+	arch: x64
+	defines: [
+		_FILE_OFFSET_BITS=64
+		__LP64__       ; has long (integer) 64 bits
+	]
+	#if macOS?   [ flag: "-arch x86_64" ]
+]
+target-arm64: [
+	arch: arm64
+	#if Linux? [flag: "-arch arm64"]
+	#if macOS? [flag: "-target arm64-apple-darwin"]
+	define: _FILE_OFFSET_BITS=64
+	define: __LP64__   ; has long (integer) 64 bits
+	define: __arm64__
+]
+target-armv7: [
+	arch: armv7
+	flag: "-march=armv7"
+]
+;----------------------------------------------------------------
+zlib-ng-src: [
+	;; This block is actually not used, because Siskin builder at this moment does not provide
+	;; feature detection like cmake does. But it may be used to do manual compilation.
+	source:  %zlib-ng/
+	include: %zlib-ng/
+	files: [
+		%arch/generic/adler32_c.c
+		%arch/generic/adler32_fold_c.c
+		%arch/generic/crc32_braid_c.c
+		%arch/generic/crc32_fold_c.c
+		%adler32.c
+		%compress.c
+		%crc32.c
+		%crc32_braid_comb.c
+		%deflate.c
+		%deflate_fast.c
+		%deflate_huff.c
+		%deflate_medium.c
+		%deflate_quick.c
+		%deflate_rle.c
+		%deflate_slow.c
+		%deflate_stored.c
+		%functable.c
+		%infback.c
+		%inflate.c
+		%inftrees.c
+		%insert_string.c
+		%insert_string_roll.c
+		%trees.c
+		%uncompr.c
+		%zutil.c
+		%arch/generic/crc32_chorba_c.c
+		%cpu_features.c
+		%arch/x86/x86_features.c
+		%arch/x86/chunkset_sse2.c
+		%arch/x86/chorba_sse2.c
+		%arch/x86/compare256_sse2.c
+		%arch/x86/slide_hash_sse2.c
+		%arch/x86/adler32_ssse3.c
+		%arch/x86/chunkset_ssse3.c
+		%arch/x86/chorba_sse41.c
+		%arch/x86/adler32_sse42.c
+		%arch/x86/crc32_pclmulqdq.c
+		%arch/x86/slide_hash_avx2.c
+		%arch/x86/chunkset_avx2.c
+		%arch/x86/compare256_avx2.c
+		%arch/x86/adler32_avx2.c
+		%arch/x86/adler32_avx512.c
+		%arch/x86/chunkset_avx512.c
+		%arch/x86/compare256_avx512.c
+		%arch/x86/adler32_avx512_vnni.c
+		%arch/x86/crc32_vpclmulqdq.c
+	]
+	defines: [
+		HAVE_ATTRIBUTE_ALIGNED
+		HAVE_BUILTIN_ASSUME_ALIGNED
+		HAVE_BUILTIN_CTZ
+		HAVE_BUILTIN_CTZLL
+		HAVE_CPUID_GNU
+		HAVE_LINUX_AUXVEC_H
+		HAVE_SYS_AUXV_H
+		HAVE_VISIBILITY_HIDDEN
+		HAVE_VISIBILITY_INTERNAL
+		WITH_GZFILEOP
+		WITH_OPTIM
+		X86_AVX2
+		X86_AVX512
+		X86_AVX512VNNI
+		X86_FEATURES
+		X86_HAVE_XSAVE_INTRIN
+		X86_PCLMULQDQ_CRC
+		X86_SSE2
+		X86_SSE41
+		X86_SSE42
+		X86_SSSE3
+		X86_VPCLMULQDQ_CRC
+		ZLIBNG_NATIVE_API
+		WITH_RUNTIME_CPU_DETECTION=ON
+	]
+	flags: [-std=c11 -mssse3 -mpclmul -msse4.2 -mavx2 -mavx512f -mavx512bw -mavx512vl -mavx512dq -mbmi2 -mavx512vnni -mvpclmulqdq]
+]
+
+;----------------------------------------------------------------
+r3-extension: [
+	source: %src/
+	files: only [
+		%zlib-commands.c
+		%zlib-commands-table.c
+		%zlib-rebol-extension.c
+	]
+	strip: on
+	flags: shared
+	#if macOS? [
+		lflags:  [-dynamiclib]
+		flag:    -mmacosx-version-min=10.9
+		compiler: clang
+	]
+	#if Posix? [
+		cflags: [-fPIC -pthread]
+		libraries: [%pthread]
+	]
+	#if Windows? [
+		upx: on
+	]
+	do %src/zlib-rebol-extension.r3 
+]
+
+;----------------------------------------------------------------
+eggs: only [
+	#if Windows? [
+		"Make Zlib-ng static library (cmake) - x64" [
+			arch: x64
+			name: %static-lib-x64
+			cmd %_static_win_x64/ "cmake ../zlib-ng/ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
+			cmd %_static_win_x64/ {cmake --build . --config release -j 8}
+		]
+		"Rebol/Zlib-ng extension - x64" [
+			name: %zlib-ng-windows-x64
+			:r3-extension
+			:target-x64
+			include:    %_static_win_x64/
+			libraries: [%_static_win_x64/Release/ %zlibstatic-ng]
+		]
+	]
+	#if Linux? [
+		"Make Zlib-ng static library (cmake) - x64" [
+			arch: x64
+			name: %static-lib-x64
+			cmd %_static_nix_x64/ "cmake ../zlib-ng/ -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+			cmd %_static_nix_x64/ {cmake --build . --config release -j 8}
+		]
+		"Rebol/Zlib-ng extension - x64" [
+			name:  %zlib-ng-linux-x64
+			:r3-extension
+			:target-x64
+			include:    %_static_nix_x64/
+			libraries: [%_static_nix_x64/ %z-ng]
+		]
+	]
+	#if macOS? [
+		"Make Zlib-ng static library (cmake) - x64" [
+			name: %static-lib-x64
+			arch: x64
+			cmd %_static_mac_x64/ "cmake ../blend2d/ -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9"
+			cmd %_static_mac_x64/ {cmake --build .}
+		]
+		"Make Zlib-ng static library (cmake) - arm64" [
+			name: %static-lib-arm64
+			arch: arm64
+			cmd %_static_mac_arm64/ "cmake ../blend2d/ -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9"
+			cmd %_static_mac_arm64/ {cmake --build .}
+		]
+		"Rebol/Zlib-ng extension - x64" [
+			name:  %zlib-ng-macos-x64
+			:r3-extension
+			:target-x64
+			include:    %_static_mac_x64/
+			libraries: [%_static_mac_x64/ %z-ng]
+		]
+		"Rebol/Zlib-ng extension - arm64" [
+			name:  %zlib-ng-macos-arm64
+			:r3-extension
+			:target-arm64
+			include:    %_static_mac_arm64/
+			libraries: [%_static_mac_arm64/ %z-ng]
+		]
+	]
+]

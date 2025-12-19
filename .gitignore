@@ -1,0 +1,9 @@
+/*
+!/.gitignore
+!/.github
+!/.editorconfig
+!*.nest
+!/README.md
+!/LICENSE
+!*.r3
+!/src
