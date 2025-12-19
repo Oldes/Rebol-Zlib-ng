@@ -8,7 +8,7 @@
 
 
 ## Basic usage
-Use Zstandard as a codec for the standard compress and decompress functions:
+Use Zlib-ng as a codec for the standard compress and decompress functions:
 ```rebol
 import zlib-ng
 bin: compress "some data" 'zlib
@@ -19,7 +19,7 @@ txt: to string! decompress bin 'zlib
 The streaming API lets you process data in chunks, which is useful for large inputs, pipes, or network streams.
 ```rebol
 zlib: import zlib-ng     ;; Import the module and assign it to a variable
-enc: zlib/make-encoder   ;; Initialize the Zstandard encoder state handle
+enc: zlib/make-encoder   ;; Initialize the Zlib-ng encoder state handle
 zlib/write :enc "Hello"  ;; Process some input data
 zlib/write :enc " "
 zlib/write :enc "Zlib-ng"
@@ -32,14 +32,14 @@ bin2: zlib/write/finish :enc " from Rebol!"
 
 ;; Decompress both compressed blocks again (using extension's command this time):
 text: to string! zlib/decompress join bin1 bin2
-;== "Hello Zstandard from Rebol!"
+;== "Hello Zlib-ng from Rebol!"
 
 ;; Or using streaming API:
-dec: zlib/make-decoder   ;; Initialize the Zstandard decoder state handle
+dec: zlib/make-decoder   ;; Initialize the Zlib-ng decoder state handle
 zlib/write :dec bin1     ;; Feed some compressed chunks
 zlib/write :dec bin2
 text: to string! zlib/read :dec ;; Resolve decompressed data
-;== "Hello Zstandard from Rebol!"
+;== "Hello Zlib-ng from Rebol!"
 ```
 
 ### Example: file helpers
@@ -47,8 +47,8 @@ These (basic) examples show how to build file-level utilities on top of the stre
 ```rebol
 gz-compress-file: function[file][
     src: open/read file                 ;; input file
-    out: open/new/write join file %.zst ;; output file
-    enc: zlib/make-encoder/level 6      ;; initialize Zstandard encoder
+    out: open/new/write join file %.gz  ;; output file
+    enc: zlib/make-gzip-encoder/level 6 ;; initialize gzip encoder
     chunk-size: 65536
     while [not finish][
         chunk: copy/part src chunk-size
@@ -63,7 +63,7 @@ gz-compress-file: function[file][
 ]
 gz-decompress-file: function[file][
     src: open/read file                 ;; input file
-    dec: zlib/make-decoder              ;; initialize Zstandard decoder
+    dec: zlib/make-gzip-decoder         ;; initialize gzip decoder
     chunk-size: 65536
     while [not empty? chunk: copy/part src chunk-size][
         zlib/write :dec :chunk
