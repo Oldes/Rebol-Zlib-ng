@@ -78,6 +78,10 @@ RXIEXT const char *RX_Init(int opts, RL_LIB *lib) {
 	//spec.set_path  = ZlibDecHandle_set_path;
 	Handle_ZlibDecoder = RL_REGISTER_HANDLE_SPEC((REBYTE*)"zlib-ng-decoder", &spec);
 
+	RL_REGISTER_COMPRESS_METHOD(cb_cast("deflate"), CompressDeflate, DecompressDeflate);
+	RL_REGISTER_COMPRESS_METHOD(cb_cast("zlib"), CompressZlib, DecompressZlib);
+	RL_REGISTER_COMPRESS_METHOD(cb_cast("gzip"), CompressGzip, DecompressGzip);
+
 	RL_REGISTER_COMPRESS_METHOD(cb_cast("deflate-ng"), CompressDeflate, DecompressDeflate);
 	RL_REGISTER_COMPRESS_METHOD(cb_cast("zlib-ng"), CompressZlib, DecompressZlib);
 	RL_REGISTER_COMPRESS_METHOD(cb_cast("gzip-ng"), CompressGzip, DecompressGzip);
