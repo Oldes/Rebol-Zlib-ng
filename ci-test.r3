@@ -2,14 +2,6 @@ Rebol [
     title: "Rebol/Zlib extension CI test"
 ]
 
-
-
-
-
-try [import 'zstd]
-
-
-
 print ["Running test on Rebol build:" mold to-block system/build]
 
 ;; make sure that we load a fresh extension
