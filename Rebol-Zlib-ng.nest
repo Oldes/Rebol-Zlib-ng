@@ -157,11 +157,30 @@ r3-extension: [
 ;----------------------------------------------------------------
 eggs: only [
 	#if Windows? [
+		"Make Zlib-ng static library (cmake) - x86" [
+			arch: x86
+			name: %static-lib-x86
+			cmd %_static_win_x86/ "cmake ../zlib-ng/ -A Win32 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
+			cmd %_static_win_x86/ {cmake --build . --config release -j 8}
+		]
 		"Make Zlib-ng static library (cmake) - x64" [
 			arch: x64
 			name: %static-lib-x64
 			cmd %_static_win_x64/ "cmake ../zlib-ng/ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
 			cmd %_static_win_x64/ {cmake --build . --config release -j 8}
+		]
+		"Make Zlib-ng static library (cmake) - arm64" [
+			arch: arm64
+			name: %static-lib-arm64
+			cmd %_static_win_arm64/ "cmake ../zlib-ng/ -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
+			cmd %_static_win_arm64/ {cmake --build . --config release -j 8}
+		]
+		"Rebol/Zlib-ng extension - x86" [
+			name: %zlib-ng-windows-x86
+			:r3-extension
+			:target-x86
+			include:    %_static_win_x86/
+			libraries: [%_static_win_x86/Release/ %zlibstatic-ng]
 		]
 		"Rebol/Zlib-ng extension - x64" [
 			name: %zlib-ng-windows-x64
@@ -169,6 +188,13 @@ eggs: only [
 			:target-x64
 			include:    %_static_win_x64/
 			libraries: [%_static_win_x64/Release/ %zlibstatic-ng]
+		]
+		"Rebol/Zlib-ng extension - arm64" [
+			name: %zlib-ng-windows-arm64
+			:r3-extension
+			:target-arm64
+			include:    %_static_win_arm64/
+			libraries: [%_static_win_arm64/Release/ %zlibstatic-ng]
 		]
 	]
 	#if Linux? [
