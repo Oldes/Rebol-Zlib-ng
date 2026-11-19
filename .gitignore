@@ -7,3 +7,5 @@
 !/LICENSE
 !*.r3
 !/src
+*/gen-*
+.DS_Store

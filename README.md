@@ -151,4 +151,13 @@ Z_FILTERED:     1
 Z_HUFFMAN_ONLY: 2
 Z_RLE:          3
 Z_FIXED:        4
+
+;; Update HTTP scheme that it's able to use the Zlib compression
+;attempt [
+;	unless parse system/schemes/http/headers/Accept-Encoding [
+;		thru #"," any #" " "zlib" any #" " [end | #","] to end
+;	][
+;		append system/schemes/http/headers/Accept-Encoding ",zlib,deflate,gzip"
+;	]
+;]
 ```
