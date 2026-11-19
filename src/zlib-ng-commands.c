@@ -24,6 +24,18 @@ static const REBYTE* ERR_NO_COMPRESS    = (const REBYTE*)"Failed to compress usi
 static const REBYTE* ERR_NO_DECOMPRESS  = (const REBYTE*)"Failed to decompress using the Zlib decoder!";
 
 
+// Argument `n` is a live Zlib encoder or decoder handle. Checked on the
+// argument value before its context is touched: a plain handle of another
+// type is not a context at all, and a released one has no stream anymore.
+// The context's own symbol is compared too, in case it was given to a new
+// handle while the value still refers to it.
+#define ARG_IS_CODEC(n) ( \
+	(FRM_IS_HANDLE(n, Handle_ZlibEncoder) || FRM_IS_HANDLE(n, Handle_ZlibDecoder)) \
+	&& (RXA_HANDLE_FLAGS(frm, n) & HANDLE_CONTEXT) \
+	&& IS_USED_HOB(RXA_HANDLE_CONTEXT(frm, n)) \
+	&& RXA_HANDLE_CONTEXT(frm, n)->sym == RXA_HANDLE_TYPE(frm, n) \
+	&& RXA_HANDLE_CONTEXT(frm, n)->data != NULL)
+
 typedef enum {
 	DEFLATE_MODE_DEFLATE,
 	DEFLATE_MODE_ZLIB,
@@ -337,7 +349,7 @@ COMMAND cmd_zlib_ng_make_gzip_decoder(RXIFRM *frm, void *ctx) {
 }
 
 COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
-	REBHOB *hob       = RXA_HANDLE(frm, 1);
+	REBHOB *hob       = RXA_HANDLE_CONTEXT(frm, 1);
 	REBSER *data      = OPT_SERIES(2);
 	REBINT index      = RXA_INDEX(frm, 2);
 	REBFLG ref_flush  = RXA_REF(frm, 3);
@@ -347,9 +359,7 @@ COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
 	REBSER *buffer;
 	REBINT result;
 
-	if (hob->handle == NULL || !(hob->sym == Handle_ZlibEncoder || hob->sym == Handle_ZlibDecoder)) {
-		RETURN_ERROR(ERR_INVALID_HANDLE);
-	}
+	if (!ARG_IS_CODEC(1)) RETURN_ERROR(ERR_INVALID_HANDLE);
 
 	zng_stream *stream = (zng_stream*)hob->data;
 	buffer = hob->series;
@@ -454,10 +464,8 @@ COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
 COMMAND cmd_zlib_ng_read(RXIFRM *frm, void *ctx) {
 	REBINT result;
 	REBLEN tail;
-	REBHOB *hob = RXA_HANDLE(frm, 1);
-	if (hob->data == NULL || (hob->sym != Handle_ZlibEncoder && hob->sym != Handle_ZlibDecoder)) {
-		RETURN_ERROR(ERR_INVALID_HANDLE);
-	}
+	REBHOB *hob = RXA_HANDLE_CONTEXT(frm, 1);
+	if (!ARG_IS_CODEC(1)) RETURN_ERROR(ERR_INVALID_HANDLE);
 
 	REBSER *buffer = hob->series;
 	if (!buffer) return RXR_NONE;

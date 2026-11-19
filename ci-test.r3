@@ -285,6 +285,27 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streaming API refuses foreign and released handles."
+enc: zng/make-encoder
+dec: zng/make-decoder
+zng/write :enc "Hello"
+foreign: attempt [rc4/key #{0102030405}] ;; a handle of another type (if available)
+unless all [
+    any [not handle? :foreign  error? try [zng/write :foreign "x"]]
+    any [not handle? :foreign  error? try [zng/read :foreign]]
+    ;; a released handle has no stream anymore
+    release :enc
+    error? try [zng/write :enc "x"]
+    error? try [zng/read :enc]
+    release :dec
+    error? try [zng/write :dec #{00}]
+][
+    print as-red "Streaming API accepted a foreign or released handle!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline
