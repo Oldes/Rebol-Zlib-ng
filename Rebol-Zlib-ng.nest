@@ -1,12 +1,11 @@
-;-    .-.                                                                       
-;-   /'v'\   SISKIN-Builder 3.9.0 project file                                  
-;-  (/uOu\)  https://github.com/Siskin-framework/Builder/                       
+;-    .-.
+;-   /'v'\   SISKIN-Builder project file
+;-  (/uOu\)  https://github.com/Siskin-framework/Builder/
 ;-===="="=======================================================================
 
-github: zlib-ng/zlib-ng /2.3.2
+github: zlib-ng/zlib-ng /2.3.3
 
-
-version: 2.3.2
+version: 2.3.3
 
 compiler: clang
 arch:     x64
@@ -16,228 +15,208 @@ optimize: 2
 
 ;- options common for all Rebol extensions ----------------------
 #if Windows? [
-	define: _CRT_SECURE_NO_WARNINGS
-	define: _USE_MATH_DEFINES
 	define: TO_WINDOWS
+	define: _CRT_SECURE_NO_WARNINGS
+	set-env CMAKE_GEN: {-G "Visual Studio 17 2022"}
+]
+#if macOS?   [
+	define: TO_OSX
+	define: HAS_BOOL
+	set-env CMAKE_GEN: ""
 ]
 #if Linux? [
+	define: TO_LINUX
 	compiler: gcc
+	set-env CMAKE_GEN: ""
+	cflags: -fvisibility=hidden
 ]
+
+define: ENDIAN_LITTLE
+
 target-x86: [
+	;- On linux needs:  sudo apt install gcc-multilib g++-multilib
 	arch: x86
+	set ARCH_NAME: "x86"
+	set SISKIN_INSTALL_PREFIX: "$SISKIN_INSTALL/$INSTALL_SUFFIX/x86"
+	#if macOS?   [ fail "It is not possible to make 32bit build on macos" ]
+	#if Posix?   [
+		set CMAKE_ARCH: "-DCMAKE_C_FLAGS=-m32 -DCMAKE_CXX_FLAGS=-m32"
+	]
+	#if Windows? [
+		flags: "-arch x86_64"
+		set CMAKE_ARCH: "-A Win32"
+	]
 ]
 target-x64: [
 	arch: x64
+	set ARCH_NAME: "x64"
+	set SISKIN_INSTALL_PREFIX: "$SISKIN_INSTALL/$INSTALL_SUFFIX/x64"
 	defines: [
 		_FILE_OFFSET_BITS=64
-		__LP64__       ; has long (integer) 64 bits
+		__LP64__ ; has long (integer) 64 bits
 	]
-	#if macOS?   [ flag: "-arch x86_64" ]
+	#if Windows? [ set CMAKE_ARCH: "-A x64" ]
+	#if Posix?   [ set CMAKE_ARCH: ""]
+	#if macOS?   [
+		flags: ["-arch x86_64"]
+		set CMAKE_ARCH: [
+			"-DCMAKE_OSX_SYSROOT=macosx"
+			"-DCMAKE_OSX_ARCHITECTURES=x86_64"
+			"-DCMAKE_APPLE_SILICON_PROCESSOR=x86_64" ;; make CMake treat the build as x86_64, not the arm64 host
+			"-DCMAKE_OSX_DEPLOYMENT_TARGET=10.9"
+		]
+	]
 ]
 target-arm64: [
 	arch: arm64
-	#if Linux? [flag: "-arch arm64"]
-	#if macOS? [flag: "-target arm64-apple-darwin"]
+	set ARCH_NAME: "arm64"
+	set SISKIN_INSTALL_PREFIX: "$SISKIN_INSTALL/$INSTALL_SUFFIX/arm64"
 	define: _FILE_OFFSET_BITS=64
-	define: __LP64__   ; has long (integer) 64 bits
+	define: __LP64__ ; has long (integer) 64 bits
 	define: __arm64__
-]
-target-armv7: [
-	arch: armv7
-	flag: "-march=armv7"
+	#if Posix? [
+		#either macOS? [
+			flags: "-target arm64-apple-darwin"
+			set CMAKE_ARCH: [
+				"-DCMAKE_OSX_SYSROOT=macosx"
+				"-DCMAKE_OSX_ARCHITECTURES=arm64"
+				"-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0"
+			]
+		][
+			;- Needs:  sudo apt install gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+			set CMAKE_ARCH: [
+				"-DCMAKE_SYSTEM_NAME=Linux"
+				"-DCMAKE_SYSTEM_PROCESSOR=aarch64"
+				"-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc"
+				"-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++"
+			]
+		]
+	]
+	#if Windows? [
+		set CMAKE_ARCH: "-A arm64"
+	]
 ]
 ;----------------------------------------------------------------
-zlib-ng-src: [
-	;; This block is actually not used, because Siskin builder at this moment does not provide
-	;; feature detection like cmake does. But it may be used to do manual compilation.
-	source:  %zlib-ng/
-	include: %zlib-ng/
-	files: [
-		%arch/generic/adler32_c.c
-		%arch/generic/adler32_fold_c.c
-		%arch/generic/crc32_braid_c.c
-		%arch/generic/crc32_fold_c.c
-		%adler32.c
-		%compress.c
-		%crc32.c
-		%crc32_braid_comb.c
-		%deflate.c
-		%deflate_fast.c
-		%deflate_huff.c
-		%deflate_medium.c
-		%deflate_quick.c
-		%deflate_rle.c
-		%deflate_slow.c
-		%deflate_stored.c
-		%functable.c
-		%infback.c
-		%inflate.c
-		%inftrees.c
-		%insert_string.c
-		%insert_string_roll.c
-		%trees.c
-		%uncompr.c
-		%zutil.c
-		%arch/generic/crc32_chorba_c.c
-		%cpu_features.c
-		%arch/x86/x86_features.c
-		%arch/x86/chunkset_sse2.c
-		%arch/x86/chorba_sse2.c
-		%arch/x86/compare256_sse2.c
-		%arch/x86/slide_hash_sse2.c
-		%arch/x86/adler32_ssse3.c
-		%arch/x86/chunkset_ssse3.c
-		%arch/x86/chorba_sse41.c
-		%arch/x86/adler32_sse42.c
-		%arch/x86/crc32_pclmulqdq.c
-		%arch/x86/slide_hash_avx2.c
-		%arch/x86/chunkset_avx2.c
-		%arch/x86/compare256_avx2.c
-		%arch/x86/adler32_avx2.c
-		%arch/x86/adler32_avx512.c
-		%arch/x86/chunkset_avx512.c
-		%arch/x86/compare256_avx512.c
-		%arch/x86/adler32_avx512_vnni.c
-		%arch/x86/crc32_vpclmulqdq.c
-	]
-	defines: [
-		HAVE_ATTRIBUTE_ALIGNED
-		HAVE_BUILTIN_ASSUME_ALIGNED
-		HAVE_BUILTIN_CTZ
-		HAVE_BUILTIN_CTZLL
-		HAVE_CPUID_GNU
-		HAVE_LINUX_AUXVEC_H
-		HAVE_SYS_AUXV_H
-		HAVE_VISIBILITY_HIDDEN
-		HAVE_VISIBILITY_INTERNAL
-		WITH_GZFILEOP
-		WITH_OPTIM
-		X86_AVX2
-		X86_AVX512
-		X86_AVX512VNNI
-		X86_FEATURES
-		X86_HAVE_XSAVE_INTRIN
-		X86_PCLMULQDQ_CRC
-		X86_SSE2
-		X86_SSE41
-		X86_SSE42
-		X86_SSSE3
-		X86_VPCLMULQDQ_CRC
-		ZLIBNG_NATIVE_API
-		WITH_RUNTIME_CPU_DETECTION=ON
-	]
-	flags: [-std=c11 -mssse3 -mpclmul -msse4.2 -mavx2 -mavx512f -mavx512bw -mavx512vl -mavx512dq -mbmi2 -mavx512vnni -mvpclmulqdq]
-]
+
 
 ;----------------------------------------------------------------
+;- extension sources are built out of the Rebol tree -------------
+;; Selects the amalgamated `rebol-extension.h` in the generated header.
+define: REB_EXT
+
 r3-extension: [
-	source: %src/
-	files: only [
-		%zlib-commands.c
-		%zlib-commands-table.c
-		%zlib-rebol-extension.c
-	]
-	strip: on
 	flags: shared
+	strip: on
+	source: %src/
+	include: %$SISKIN_INSTALL_PREFIX/include/
+	library: %$SISKIN_INSTALL_PREFIX/lib/
+	files: only [
+		%zlib-ng.c
+		%zlib-ng-commands.c
+		%gen-zlib-ng.c
+	]
 	#if macOS? [
-		lflags:  [-dynamiclib]
-		flag:    -mmacosx-version-min=10.9
 		compiler: clang
+		lflag:  "-dynamiclib"
+		cflag:  "-mmacosx-version-min=10.9"
+		;; Export only the extension entry points.
+		lflag: "-Wl,-exported_symbol,_RX_Init -Wl,-exported_symbol,_RX_Quit -Wl,-exported_symbol,_RX_Call -Wl,-exported_symbol,_RX_Abi"
+		lflag: "-Wl,-dead_strip"
 	]
 	#if Posix? [
 		cflags: [-fPIC -pthread]
 		libraries: [%pthread]
 	]
+	#if Linux? [
+		lflag: "-Wl,--exclude-libs,ALL"
+		lflag: "-Wl,--gc-sections"
+		lflag: "-Wl,--no-undefined"   ;; fail at link time, not at load time
+		library: %pthread
+	]
 	#if Windows? [
 		upx: on
 	]
-	do %src/zlib-rebol-extension.r3 
+	;- generate the extension header and command table -------------
+	;; Produces %src/gen-zlib-ng.h and %src/gen-zlib-ng.c, and refreshes
+	;; %README.md's reference section (make-extension.r3 0.7.0+ only
+	;; touches the README when --readme is passed).
+	do %make-extension.r3 [%src/zlib-ng.reb --readme]
 ]
 
-;----------------------------------------------------------------
-eggs: only [
-	#if Windows? [
-		"Make Zlib-ng static library (cmake) - x86" [
-			arch: x86
-			name: %static-lib-x86
-			cmd %_static_win_x86/ "cmake ../zlib-ng/ -A Win32 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
-			cmd %_static_win_x86/ {cmake --build . --config release -j 8}
-		]
-		"Make Zlib-ng static library (cmake) - x64" [
-			arch: x64
-			name: %static-lib-x64
-			cmd %_static_win_x64/ "cmake ../zlib-ng/ -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
-			cmd %_static_win_x64/ {cmake --build . --config release -j 8}
-		]
-		"Make Zlib-ng static library (cmake) - arm64" [
-			arch: arm64
-			name: %static-lib-arm64
-			cmd %_static_win_arm64/ "cmake ../zlib-ng/ -A ARM64 -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF"
-			cmd %_static_win_arm64/ {cmake --build . --config release -j 8}
-		]
-		"Rebol/Zlib-ng extension - x86" [
-			name: %zlib-ng-windows-x86
-			:r3-extension
-			:target-x86
-			include:    %_static_win_x86/
-			libraries: [%_static_win_x86/Release/ %zlibstatic-ng]
-		]
-		"Rebol/Zlib-ng extension - x64" [
-			name: %zlib-ng-windows-x64
-			:r3-extension
-			:target-x64
-			include:    %_static_win_x64/
-			libraries: [%_static_win_x64/Release/ %zlibstatic-ng]
-		]
-		"Rebol/Zlib-ng extension - arm64" [
-			name: %zlib-ng-windows-arm64
-			:r3-extension
-			:target-arm64
-			include:    %_static_win_arm64/
-			libraries: [%_static_win_arm64/Release/ %zlibstatic-ng]
-		]
+;; Library names, with the native API (ZLIB_COMPAT=OFF, so the `-ng` suffix):
+;; MSVC names the static library `zlibstatic-ng` and the shared (import)
+;; library `zlib-ng`; everywhere else both are `z-ng`.
+link-static: [
+	set CMAKE_LINK: "-DBUILD_SHARED_LIBS=OFF"
+	set INSTALL_SUFFIX: "static"
+	set DIR_SUFFIX: ""
+	#either windows? [
+		library: %zlibstatic-ng
+	][	library: %z-ng]
+]
+link-shared: [
+	set CMAKE_LINK: "-DBUILD_SHARED_LIBS=ON"
+	set INSTALL_SUFFIX: "shared"
+	set DIR_SUFFIX: "-shared"
+	#either windows? [
+		library: %zlib-ng
+	][	library: %z-ng]
+]
+
+cmake-build: [
+	set CMAKE_COMMON: [
+		"-DCMAKE_BUILD_TYPE=Release"
+		"-DCMAKE_VERBOSE_MAKEFILE=OFF"
+		;; native zng_* API (the extension uses zlib-ng.h, not zlib.h)
+		"-DZLIB_COMPAT=OFF"
+		;; no tests, which also disables gtest
+		"-DBUILD_TESTING=OFF"
+		;; the static library is linked into a shared extension
+		"-DCMAKE_POSITION_INDEPENDENT_CODE=ON"
+		;; GNUInstallDirs may pick lib64 on some Linux distros
+		"-DCMAKE_INSTALL_LIBDIR=lib"
+		"-DCMAKE_INSTALL_PREFIX=$SISKIN_INSTALL_PREFIX"
+	;- Above defined based on target
+		"$CMAKE_ARCH"
+		"$CMAKE_LINK"
+
 	]
-	#if Linux? [
-		"Make Zlib-ng static library (cmake) - x64" [
-			arch: x64
-			name: %static-lib-x64
-			cmd %_static_nix_x64/ "cmake ../zlib-ng/ -DCMAKE_VERBOSE_MAKEFILE=OFF -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON"
-			cmd %_static_nix_x64/ {cmake --build . --config release -j 8}
-		]
-		"Rebol/Zlib-ng extension - x64" [
-			name:  %zlib-ng-linux-x64
-			:r3-extension
-			:target-x64
-			include:    %_static_nix_x64/
-			libraries: [%_static_nix_x64/ %z-ng]
-		]
+	cmd "cmake --fresh -B $SISKIN_TEMP/zlib-ng-$ARCH_NAME$DIR_SUFFIX $CMAKE_GEN -S zlib-ng $CMAKE_COMMON"
+	cmd "cmake --build    $SISKIN_TEMP/zlib-ng-$ARCH_NAME$DIR_SUFFIX --config release -j 8"
+	cmd "cmake --install  $SISKIN_TEMP/zlib-ng-$ARCH_NAME$DIR_SUFFIX --config release"
+]
+
+eggs: [
+	"Cmake Zlib-ng static - x86"  [ name: %cmake-zlib-ng-x86          :link-static :target-x86   :cmake-build ]
+	"Cmake Zlib-ng static - x64"  [ name: %cmake-zlib-ng-x64          :link-static :target-x64   :cmake-build ]
+	"Cmake Zlib-ng static - arm64"[ name: %cmake-zlib-ng-arm64        :link-static :target-arm64 :cmake-build ]
+	"Cmake Zlib-ng shared - x86"  [ name: %cmake-zlib-ng-shared-x86   :link-shared :target-x86   :cmake-build ]
+	"Cmake Zlib-ng shared - x64"  [ name: %cmake-zlib-ng-shared-x64   :link-shared :target-x64   :cmake-build ]
+	"Cmake Zlib-ng shared - arm64"[ name: %cmake-zlib-ng-shared-arm64 :link-shared :target-arm64 :cmake-build ]
+
+	"Rebol Zlib-ng static extension: x86" [
+		name: %zlib-ng-x86
+		:link-static :target-x86 :r3-extension
 	]
-	#if macOS? [
-		"Make Zlib-ng static library (cmake) - x64" [
-			name: %static-lib-x64
-			arch: x64
-			cmd %_static_mac_x64/ "cmake ../zlib-ng/ -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9"
-			cmd %_static_mac_x64/ {cmake --build .}
-		]
-		"Make Zlib-ng static library (cmake) - arm64" [
-			name: %static-lib-arm64
-			arch: arm64
-			cmd %_static_mac_arm64/ "cmake ../zlib-ng/ -DCMAKE_BUILD_TYPE=Release -DCMAKE_VERBOSE_MAKEFILE:BOOL=OFF -DBUILD_TESTING=OFF -DWITH_GTEST=OFF -DBUILD_SHARED_LIBS=OFF -DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_OSX_SYSROOT=macosx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9"
-			cmd %_static_mac_arm64/ {cmake --build .}
-		]
-		"Rebol/Zlib-ng extension - x64" [
-			name:  %zlib-ng-macos-x64
-			:r3-extension
-			:target-x64
-			include:    %_static_mac_x64/
-			libraries: [%_static_mac_x64/ %z-ng]
-		]
-		"Rebol/Zlib-ng extension - arm64" [
-			name:  %zlib-ng-macos-arm64
-			:r3-extension
-			:target-arm64
-			include:    %_static_mac_arm64/
-			libraries: [%_static_mac_arm64/ %z-ng]
-		]
+	"Rebol Zlib-ng static extension: x64" [
+		name: %zlib-ng-x64
+		:link-static :target-x64 :r3-extension
+	]
+	"Rebol Zlib-ng static extension: arm64" [
+		name: %zlib-ng-arm64
+		:link-static :target-arm64 :r3-extension
+	]
+
+	"Rebol Zlib-ng shared extension: x86" [
+		name: %zlib-ng-shared-x86
+		:link-shared :target-x86 :r3-extension
+	]
+	"Rebol Zlib-ng shared extension: x64" [
+		name: %zlib-ng-shared-x64
+		:link-shared :target-x64 :r3-extension
+	]
+	"Rebol Zlib-ng shared extension: arm64" [
+		name: %zlib-ng-shared-arm64
+		:link-shared :target-arm64 :r3-extension
 	]
 ]

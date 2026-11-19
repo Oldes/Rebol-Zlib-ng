@@ -123,8 +123,8 @@ Creates a gzip-wrapped deflate encoder (window-bits=31).
 
 #### `make-decoder`
 Creates a deflate decoder handle for streaming decompression.
-* `/window` Expected window size (auto-detect by default)
-* `window-bits` `[integer!]` 8..15 (zlib), -8..-15 (raw deflate), 24..31 (gzip)
+* `/window` Expected window size (raw deflate by default)
+* `window-bits` `[integer!]` 8..15 (zlib), -8..-15 (raw deflate), 24..31 (gzip), 40..47 (zlib or gzip auto-detect)
 
 #### `make-zlib-decoder`
 Creates a zlib-wrapped deflate decoder (window-bits=15).
@@ -151,4 +151,13 @@ Z_FILTERED:     1
 Z_HUFFMAN_ONLY: 2
 Z_RLE:          3
 Z_FIXED:        4
+
+;; Update HTTP scheme that it's able to use the Zlib compression
+;attempt [
+;	unless parse system/schemes/http/headers/Accept-Encoding [
+;		thru #"," any #" " "zlib" any #" " [end | #","] to end
+;	][
+;		append system/schemes/http/headers/Accept-Encoding ",zlib,deflate,gzip"
+;	]
+;]
 ```

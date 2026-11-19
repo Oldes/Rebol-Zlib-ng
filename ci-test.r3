@@ -3,12 +3,16 @@ Rebol [
 ]
 
 print ["Running test on Rebol build:" mold to-block system/build]
+system/options/quiet: false
+system/options/log/rebol: 4
 
 ;; make sure that we load a fresh extension
 try [system/modules/zlib-ng: none]
-;; use current directory as a modules location
-system/options/modules: what-dir
 
+if modules-dir: get-env 'REBOL_MODULES_DIR [
+    system/options/modules: to-real-file modules-dir
+    ls (system/options/modules)
+]
 ;; import the extension
 zng: import 'zlib-ng
 
@@ -25,7 +29,7 @@ text: to string! read file
 sha1: checksum text 'sha1
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 
 print as-yellow "Basic de/compression using various qualities."
 for quality 1 9 1 [
@@ -56,7 +60,7 @@ for quality 1 9 1 [
 ]
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Compress using deflate streaming API."
 unless all [
     handle? enc: zng/make-encoder
@@ -113,7 +117,7 @@ unless all [
 
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Streaming using short inputs."
 ;; It is possible to reuse previous handle (when it was finished)
 enc: zng/make-encoder
@@ -163,9 +167,167 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streaming decoder with output much larger than input."
+big: append/dup copy "" "Hello Zlib-ng! " 10000
+bin: zng/compress/level big 9 ;; 150000 bytes -> a few hundred
+unless all [
+    ;; finishing at once must grow the output buffer, not fail
+    dec: zng/make-decoder
+    equal? big to string! zng/write/finish :dec :bin
+    ;; the same, when the stream is finished using none
+    dec: zng/make-decoder
+    handle? zng/write :dec :bin
+    equal? big to string! zng/write :dec none
+    ;; an empty input is not an error (no progress is possible)
+    dec: zng/make-decoder
+    handle? zng/write :dec #{}
+    ;; a truncated stream cannot be finished...
+    error? try [zng/write/finish :dec copy/part bin 10]
+    ;; ...but the decoder stays usable after the error
+    equal? big to string! zng/write/finish :dec :bin
+][
+    print as-red "Failed to decompress large output using streaming API!"
+    ++ errors
+]
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
+print as-yellow "Streaming encoder with output larger than its buffer."
+random/seed 1
+noise: make binary! 200000 ;; incompressible input
+loop 200000 [append noise random 255]
+unless all [
+    ;; the buffer is sized for the first tiny input, so it must grow...
+    enc: zng/make-encoder
+    handle? zng/write :enc "X"
+    bin: zng/write/finish :enc :noise
+    equal? join #{58} noise decompress bin 'deflate
+    ;; ...also when the pending output is collected using read
+    enc: zng/make-encoder
+    handle? zng/write :enc "X"
+    handle? zng/write :enc :noise
+    bin1: zng/read :enc
+    bin2: zng/write/finish :enc #{}
+    equal? join #{58} noise decompress join bin1 bin2 'deflate
+    ;; a repeated flush with no new input is not an error
+    enc: zng/make-encoder
+    handle? zng/write :enc "Hello"
+    bin1: zng/read :enc
+    empty? zng/read :enc
+    bin2: zng/write/finish :enc #{}
+    equal? "Hello" to string! decompress join bin1 bin2 'deflate
+][
+    print as-red "Failed to compress large output using streaming API!"
+    ++ errors
+]
+
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Compression level of streaming encoders."
+;; Written at once, an encoder must produce the same output as `compress`.
+foreach [maker zlib gzip] [
+    make-encoder      #(false) #(false)
+    make-zlib-encoder #(true)  #(false)
+    make-gzip-encoder #(false) #(true)
+][
+    for quality 0 9 1 [
+        enc: zng/:maker/level quality
+        unless equal? zng/write/finish :enc text  zng/compress/level/:zlib/:gzip text quality [
+            print [as-red "Wrong compression level of" maker "using quality:" quality]
+            ++ errors
+        ]
+    ]
+]
+unless all [
+    ;; the default level is 6, and out of range levels are clamped to 0..9
+    equal? zng/write/finish zng/make-encoder text  zng/compress/level text 6
+    equal? zng/write/finish zng/make-encoder/level -5 text  zng/compress/level text 0
+    equal? zng/write/finish zng/make-encoder/level 20 text  zng/compress/level text 9
+][
+    print as-red "Wrong default or clamped compression level of streaming encoder!"
+    ++ errors
+]
+
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Window size of streaming decoder."
+zbin: zng/compress/zlib text
+gbin: zng/compress/gzip text
+unless all [
+    ;; 8..15 is zlib, 24..31 gzip and 40..47 detects either of them
+    equal? text to string! zng/write/finish zng/make-decoder/window 15 zbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 31 gbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 47 zbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 47 gbin
+    ;; an invalid window size is refused
+    error? try [zng/make-decoder/window 99]
+][
+    print as-red "Failed to use window size of streaming decoder!"
+    ++ errors
+]
+
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Default and clamped compression level of compress."
+unless all [
+    ;; without /level the default level 6 is used (not 0 = stored)
+    equal? zng/compress text  zng/compress/level text 6
+    (length? zng/compress text) < length? text
+    ;; out of range levels are clamped to 0..9
+    equal? zng/compress/level text -5  zng/compress/level text 0
+    equal? zng/compress/level text 20  zng/compress/level text 9
+    ;; the same default as the streaming encoder
+    equal? zng/compress text  zng/write/finish zng/make-encoder text
+][
+    print as-red "Wrong default or clamped compression level of compress!"
+    ++ errors
+]
+
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streaming API refuses foreign and released handles."
+enc: zng/make-encoder
+dec: zng/make-decoder
+zng/write :enc "Hello"
+foreign: attempt [rc4/key #{0102030405}] ;; a handle of another type (if available)
+unless all [
+    any [not handle? :foreign  error? try [zng/write :foreign "x"]]
+    any [not handle? :foreign  error? try [zng/read :foreign]]
+    ;; a released handle has no stream anymore
+    release :enc
+    error? try [zng/write :enc "x"]
+    error? try [zng/read :enc]
+    release :dec
+    error? try [zng/write :dec #{00}]
+][
+    print as-red "Streaming API accepted a foreign or released handle!"
+    ++ errors
+]
+
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streams which fail to initialize."
+unless all [
+    ;; invalid settings are refused (the handle is released at once)
+    error? try [zng/make-encoder/window 99]
+    error? try [zng/make-encoder/strategy 99]
+    error? try [zng/make-decoder/window 99]
+    ;; many failures in a row followed by a collection are harmless
+    loop 1000 [try [zng/make-decoder/window 99]]
+    recycle
+    ;; and a valid stream still works afterwards
+    enc: zng/make-encoder
+    equal? "Hello" to string! decompress zng/write/finish :enc "Hello" 'deflate
+][
+    print as-red "Failed to handle streams which fail to initialize!"
+    ++ errors
+]
+
+
+;-----------------------------------------------------------------------
+print-hline
 print as-yellow "Compress and decompress files in chunks."
 
 gz-compress-file: function[file][
@@ -208,7 +370,7 @@ unless all [
 delete compressed-file
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 
 prin as-yellow "TEST RESULT: "
 print either errors == 0 [as-green "OK"][as-red "FAILED!"]
@@ -217,7 +379,7 @@ quit/return errors
 
 %{
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Basic de/compression."
 text: to string! read file
 size: length? text
