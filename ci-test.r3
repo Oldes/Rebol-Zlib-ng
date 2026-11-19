@@ -3,12 +3,16 @@ Rebol [
 ]
 
 print ["Running test on Rebol build:" mold to-block system/build]
+system/options/quiet: false
+system/options/log/rebol: 4
 
 ;; make sure that we load a fresh extension
 try [system/modules/zlib-ng: none]
-;; use current directory as a modules location
-system/options/modules: what-dir
 
+if modules-dir: get-env 'REBOL_MODULES_DIR [
+    system/options/modules: to-real-file modules-dir
+    ls (system/options/modules)
+]
 ;; import the extension
 zng: import 'zlib-ng
 
@@ -25,7 +29,7 @@ text: to string! read file
 sha1: checksum text 'sha1
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 
 print as-yellow "Basic de/compression using various qualities."
 for quality 1 9 1 [
@@ -56,7 +60,7 @@ for quality 1 9 1 [
 ]
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Compress using deflate streaming API."
 unless all [
     handle? enc: zng/make-encoder
@@ -113,7 +117,7 @@ unless all [
 
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Streaming using short inputs."
 ;; It is possible to reuse previous handle (when it was finished)
 enc: zng/make-encoder
@@ -163,9 +167,34 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streaming decoder with output much larger than input."
+big: append/dup copy "" "Hello Zlib-ng! " 10000
+bin: zng/compress/level big 9 ;; 150000 bytes -> a few hundred
+unless all [
+    ;; finishing at once must grow the output buffer, not fail
+    dec: zng/make-decoder
+    equal? big to string! zng/write/finish :dec :bin
+    ;; the same, when the stream is finished using none
+    dec: zng/make-decoder
+    handle? zng/write :dec :bin
+    equal? big to string! zng/write :dec none
+    ;; an empty input is not an error (no progress is possible)
+    dec: zng/make-decoder
+    handle? zng/write :dec #{}
+    ;; a truncated stream cannot be finished...
+    error? try [zng/write/finish :dec copy/part bin 10]
+    ;; ...but the decoder stays usable after the error
+    equal? big to string! zng/write/finish :dec :bin
+][
+    print as-red "Failed to decompress large output using streaming API!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Compress and decompress files in chunks."
 
 gz-compress-file: function[file][
@@ -208,7 +237,7 @@ unless all [
 delete compressed-file
 
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 
 prin as-yellow "TEST RESULT: "
 print either errors == 0 [as-green "OK"][as-red "FAILED!"]
@@ -217,7 +246,7 @@ quit/return errors
 
 %{
 ;-----------------------------------------------------------------------
-print-horizontal-line
+print-hline
 print as-yellow "Basic de/compression."
 text: to string! read file
 size: length? text

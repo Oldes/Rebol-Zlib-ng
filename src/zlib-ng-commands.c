@@ -387,18 +387,30 @@ COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
 		for (;;) {
 			result = zng_inflate(stream, flush);
 			debug_print("inflate result: %i  stream.total_out: %zu avail_in %u .avail_out: %u\n", result, stream->total_out, stream->avail_in, stream->avail_out);
-			if (result < 0) {
-				RETURN_ERROR(ERR_NO_COMPRESS);
+			if (result == Z_STREAM_END) break;
+			// Z_BUF_ERROR is not fatal: it means no progress was possible.
+			// With the output full, the buffer is expanded below; otherwise
+			// all the input is consumed and more must be written.
+			if (result < 0 && !(result == Z_BUF_ERROR && stream->avail_out == 0)) {
+				if (result == Z_BUF_ERROR) break;
+				RETURN_ERROR(ERR_NO_DECOMPRESS);
 			}
 			if (stream->avail_out == 0) {
-				// expand output buffer...
+				// expand output buffer (never by zero - there may be no input)...
 				SERIES_TAIL(buffer) = stream->total_out;
-				RL_EXPAND_SERIES(buffer, AT_TAIL, available_in);
+				RL_EXPAND_SERIES(buffer, AT_TAIL, (REBCNT)MAX(available_in, 4096));
 				stream->next_out = BIN_SKIP(buffer, stream->total_out);
 				stream->avail_out = SERIES_REST(buffer) - stream->total_out;
 			}
-			else if (result == Z_OK || result == Z_STREAM_END)
-				break; // Finished or we have enough data.
+			else break; // all available input consumed
+		}
+		// A finished stream must be complete; truncated input is an error.
+		if (ref_finish && result != Z_STREAM_END) {
+			// Reset, so the decoder can be reused after the error.
+			SERIES_TAIL(buffer) = 0;
+			stream->total_out = 0;
+			zng_inflateReset(stream);
+			RETURN_ERROR(ERR_NO_DECOMPRESS);
 		}
 	}
 	SERIES_TAIL(buffer) = stream->total_out;
