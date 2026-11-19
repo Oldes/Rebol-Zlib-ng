@@ -317,7 +317,13 @@ static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBit
 	} else {
 		result = zng_inflateInit2(stream, windowBits);
 	}
-	if (result != Z_OK) RETURN_ERROR(ERR_NO_STREAM);
+	if (result != Z_OK) {
+		// Release the context now instead of leaving it to the GC. The data
+		// are zeroed and a failed init leaves no state, so the free callback
+		// (deflateEnd/inflateEnd) safely does nothing.
+		RL_FREE_HANDLE_CONTEXT(hob);
+		RETURN_ERROR(ERR_NO_STREAM);
+	}
 
 	debug_print("stream: %p %u\n", (void*)stream, hob->sym);
 

@@ -306,6 +306,25 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streams which fail to initialize."
+unless all [
+    ;; invalid settings are refused (the handle is released at once)
+    error? try [zng/make-encoder/window 99]
+    error? try [zng/make-encoder/strategy 99]
+    error? try [zng/make-decoder/window 99]
+    ;; many failures in a row followed by a collection are harmless
+    loop 1000 [try [zng/make-decoder/window 99]]
+    recycle
+    ;; and a valid stream still works afterwards
+    enc: zng/make-encoder
+    equal? "Hello" to string! decompress zng/write/finish :enc "Hello" 'deflate
+][
+    print as-red "Failed to handle streams which fail to initialize!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline
