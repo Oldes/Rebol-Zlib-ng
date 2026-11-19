@@ -288,7 +288,7 @@ static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBit
 	REBINT result;
 	REBINT level = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : 6;
 
-	level = MIN(1, MAX(9, level));
+	level = MAX(0, MIN(9, level)); // 0 = no compression (stored), 9 = best
 
 	REBHOB *hob = RL_MAKE_HANDLE_CONTEXT(type);
 	if (hob == NULL) RETURN_ERROR(ERR_NO_STREAM);

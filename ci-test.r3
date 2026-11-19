@@ -223,6 +223,33 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Compression level of streaming encoders."
+;; Written at once, an encoder must produce the same output as `compress`.
+foreach [maker zlib gzip] [
+    make-encoder      #(false) #(false)
+    make-zlib-encoder #(true)  #(false)
+    make-gzip-encoder #(false) #(true)
+][
+    for quality 0 9 1 [
+        enc: zng/:maker/level quality
+        unless equal? zng/write/finish :enc text  zng/compress/level/:zlib/:gzip text quality [
+            print [as-red "Wrong compression level of" maker "using quality:" quality]
+            ++ errors
+        ]
+    ]
+]
+unless all [
+    ;; the default level is 6, and out of range levels are clamped to 0..9
+    equal? zng/write/finish zng/make-encoder text  zng/compress/level text 6
+    equal? zng/write/finish zng/make-encoder/level -5 text  zng/compress/level text 0
+    equal? zng/write/finish zng/make-encoder/level 20 text  zng/compress/level text 9
+][
+    print as-red "Wrong default or clamped compression level of streaming encoder!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline
