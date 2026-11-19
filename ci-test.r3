@@ -268,6 +268,23 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Default and clamped compression level of compress."
+unless all [
+    ;; without /level the default level 6 is used (not 0 = stored)
+    equal? zng/compress text  zng/compress/level text 6
+    (length? zng/compress text) < length? text
+    ;; out of range levels are clamped to 0..9
+    equal? zng/compress/level text -5  zng/compress/level text 0
+    equal? zng/compress/level text 20  zng/compress/level text 9
+    ;; the same default as the streaming encoder
+    equal? zng/compress text  zng/write/finish zng/make-encoder text
+][
+    print as-red "Wrong default or clamped compression level of compress!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline

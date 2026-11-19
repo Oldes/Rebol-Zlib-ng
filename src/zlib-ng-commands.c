@@ -219,7 +219,9 @@ COMMAND cmd_zlib_ng_compress(RXIFRM *frm, void *ctx) {
 	REBINT index    = RXA_INDEX(frm, 1);
 	REBFLG ref_part = RXA_REF(frm, 2);
 	REBLEN length   = SERIES_TAIL(data) - index;
-	REBINT level    = RXA_REF(frm, 4) ? RXA_INT32(frm, 5) : 0;
+	// Without /level use the default (NO_LIMIT -> Z_DEFAULT_COMPRESSION),
+	// otherwise clamp it like the streaming encoders: 0 = stored, 9 = best.
+	REBCNT level    = RXA_REF(frm, 4) ? (REBCNT)MAX(0, MIN(9, RXA_INT64(frm, 5))) : NO_LIMIT;
 	REBFLG ref_zlib = RXA_REF(frm, 6);
 	REBFLG ref_gzip = RXA_REF(frm, 7);
 	REBSER *output  = NULL;
@@ -231,7 +233,7 @@ COMMAND cmd_zlib_ng_compress(RXIFRM *frm, void *ctx) {
 
 	if (ref_part) length = (REBLEN)MAX(0, MIN(length, RXA_INT64(frm, 3)));
 
-	if (!CompressCommon(mode, (const REBYTE*)BIN_SKIP(data, index), length, (REBCNT)level, &output, &error)) {
+	if (!CompressCommon(mode, (const REBYTE*)BIN_SKIP(data, index), length, level, &output, &error)) {
 		RETURN_ERROR(ERR_NO_COMPRESS);
 	}
 
