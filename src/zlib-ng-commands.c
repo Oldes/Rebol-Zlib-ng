@@ -274,6 +274,16 @@ COMMAND cmd_zlib_ng_decompress(RXIFRM *frm, void *ctx) {
 
 //== streaming ================================================================
 
+// Expands the stream's output buffer, keeping all output produced so far.
+// The hint is how much output is still expected; it is never trusted to be
+// non-zero (there may be no input left, just pending output to flush).
+static void grow_output(REBSER *buffer, zng_stream *stream, size_t hint) {
+	SERIES_TAIL(buffer) = (REBLEN)stream->total_out;
+	RL_EXPAND_SERIES(buffer, AT_TAIL, (REBCNT)MAX(hint, 4096));
+	stream->next_out = BIN_SKIP(buffer, stream->total_out);
+	stream->avail_out = SERIES_REST(buffer) - (REBLEN)stream->total_out;
+}
+
 static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBits, int strategy) {
 	REBINT result;
 	REBINT level = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : 6;
@@ -369,15 +379,15 @@ COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
 		for (;;) {
 			result = zng_deflate(stream, flush);
 			debug_print("deflate result: %i  stream.total_out: %zu avail_in %u .avail_out: %u\n", result, stream->total_out, stream->avail_in, stream->avail_out);
+			// Z_BUF_ERROR is not fatal: no progress was possible (e.g. a
+			// repeated flush with no new input). The output is never full
+			// here, because the buffer is expanded before the next call.
+			if (result == Z_BUF_ERROR) break;
 			if (result < 0) {
 				RETURN_ERROR(ERR_NO_COMPRESS);
 			}
 			if (stream->avail_out == 0) {
-				// expand output buffer...
-				SERIES_TAIL(buffer) = stream->total_out;
-				RL_EXPAND_SERIES(buffer, AT_TAIL, (stream->total_in - stream->total_out)/3);
-				stream->next_out = BIN_SKIP(buffer, stream->total_out);
-				stream->avail_out = SERIES_REST(buffer) - stream->total_out;
+				grow_output(buffer, stream, zng_deflateBound(stream, stream->avail_in));
 			}
 			else if (result == Z_OK || result == Z_STREAM_END)
 				break; // Finished or we have enough data.
@@ -396,11 +406,7 @@ COMMAND cmd_zlib_ng_write(RXIFRM *frm, void *ctx) {
 				RETURN_ERROR(ERR_NO_DECOMPRESS);
 			}
 			if (stream->avail_out == 0) {
-				// expand output buffer (never by zero - there may be no input)...
-				SERIES_TAIL(buffer) = stream->total_out;
-				RL_EXPAND_SERIES(buffer, AT_TAIL, (REBCNT)MAX(available_in, 4096));
-				stream->next_out = BIN_SKIP(buffer, stream->total_out);
-				stream->avail_out = SERIES_REST(buffer) - stream->total_out;
+				grow_output(buffer, stream, available_in);
 			}
 			else break; // all available input consumed
 		}
@@ -463,15 +469,15 @@ COMMAND cmd_zlib_ng_read(RXIFRM *frm, void *ctx) {
 		for (;;) {
 			result = zng_deflate(stream, Z_SYNC_FLUSH);
 			debug_print("deflate result: %i  stream.total_out: %zu avail_in %u .avail_out: %u\n", result, stream->total_out, stream->avail_in, stream->avail_out);
+			// Z_BUF_ERROR is not fatal: no progress was possible (e.g. a
+			// repeated flush with no new input). The output is never full
+			// here, because the buffer is expanded before the next call.
+			if (result == Z_BUF_ERROR) break;
 			if (result < 0) {
 				RETURN_ERROR(ERR_NO_COMPRESS);
 			}
 			if (stream->avail_out == 0) {
-				// expand output buffer...
-				SERIES_TAIL(buffer) = stream->total_out;
-				RL_EXPAND_SERIES(buffer, AT_TAIL, (stream->total_in - stream->total_out)/3);
-				stream->next_out = BIN_SKIP(buffer, stream->total_out);
-				stream->avail_out = SERIES_REST(buffer) - stream->total_out;
+				grow_output(buffer, stream, zng_deflateBound(stream, stream->avail_in));
 			}
 			else if (result == Z_OK || result == Z_STREAM_END)
 				break; // Finished or we have enough data.

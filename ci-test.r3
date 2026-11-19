@@ -192,6 +192,37 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Streaming encoder with output larger than its buffer."
+random/seed 1
+noise: make binary! 200000 ;; incompressible input
+loop 200000 [append noise random 255]
+unless all [
+    ;; the buffer is sized for the first tiny input, so it must grow...
+    enc: zng/make-encoder
+    handle? zng/write :enc "X"
+    bin: zng/write/finish :enc :noise
+    equal? join #{58} noise decompress bin 'deflate
+    ;; ...also when the pending output is collected using read
+    enc: zng/make-encoder
+    handle? zng/write :enc "X"
+    handle? zng/write :enc :noise
+    bin1: zng/read :enc
+    bin2: zng/write/finish :enc #{}
+    equal? join #{58} noise decompress join bin1 bin2 'deflate
+    ;; a repeated flush with no new input is not an error
+    enc: zng/make-encoder
+    handle? zng/write :enc "Hello"
+    bin1: zng/read :enc
+    empty? zng/read :enc
+    bin2: zng/write/finish :enc #{}
+    equal? "Hello" to string! decompress join bin1 bin2 'deflate
+][
+    print as-red "Failed to compress large output using streaming API!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline
