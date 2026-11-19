@@ -250,6 +250,24 @@ unless all [
     ++ errors
 ]
 
+;-----------------------------------------------------------------------
+print-hline
+print as-yellow "Window size of streaming decoder."
+zbin: zng/compress/zlib text
+gbin: zng/compress/gzip text
+unless all [
+    ;; 8..15 is zlib, 24..31 gzip and 40..47 detects either of them
+    equal? text to string! zng/write/finish zng/make-decoder/window 15 zbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 31 gbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 47 zbin
+    equal? text to string! zng/write/finish zng/make-decoder/window 47 gbin
+    ;; an invalid window size is refused
+    error? try [zng/make-decoder/window 99]
+][
+    print as-red "Failed to use window size of streaming decoder!"
+    ++ errors
+]
+
 
 ;-----------------------------------------------------------------------
 print-hline

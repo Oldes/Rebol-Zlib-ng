@@ -123,8 +123,8 @@ commands: [
 
 	make-decoder: [
 		"Creates a deflate decoder handle for streaming decompression."
-		/window "Expected window size (auto-detect by default)"
-		 window-bits  [integer!] "8..15 (zlib), -8..-15 (raw deflate), 24..31 (gzip)"
+		/window "Expected window size (raw deflate by default)"
+		 window-bits  [integer!] "8..15 (zlib), -8..-15 (raw deflate), 24..31 (gzip), 40..47 (zlib or gzip auto-detect)"
 	]
 
 	make-zlib-decoder: [

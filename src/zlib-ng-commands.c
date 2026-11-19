@@ -286,9 +286,6 @@ static void grow_output(REBSER *buffer, zng_stream *stream, size_t hint) {
 
 static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBits, int strategy) {
 	REBINT result;
-	REBINT level = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : 6;
-
-	level = MAX(0, MIN(9, level)); // 0 = no compression (stored), 9 = best
 
 	REBHOB *hob = RL_MAKE_HANDLE_CONTEXT(type);
 	if (hob == NULL) RETURN_ERROR(ERR_NO_STREAM);
@@ -299,6 +296,9 @@ static int make_stream_handle(RXIFRM *frm, void *ctx, REBCNT type, int windowBit
 	stream->opaque = NULL;
 
 	if (type == Handle_ZlibEncoder) {
+		// All encoder commands have `/level quality` as their first refinement.
+		REBINT level = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : 6;
+		level = MAX(0, MIN(9, level)); // 0 = no compression (stored), 9 = best
 		result = zng_deflateInit2(stream, level, Z_DEFLATED, windowBits, 8, strategy);
 	} else {
 		result = zng_inflateInit2(stream, windowBits);
@@ -323,7 +323,8 @@ COMMAND cmd_zlib_ng_make_gzip_encoder(RXIFRM *frm, void *ctx) {
 }
 
 COMMAND cmd_zlib_ng_make_decoder(RXIFRM *frm, void *ctx) {
-	int windowBits = RXA_REF(frm, 3) ? RXA_INT32(frm, 4) : -15;
+	// `/window window-bits` is the decoder's only refinement (args 1 and 2).
+	int windowBits = RXA_REF(frm, 1) ? RXA_INT32(frm, 2) : -15;
 	return make_stream_handle(frm, ctx, Handle_ZlibDecoder, windowBits, 0);
 }
 COMMAND cmd_zlib_ng_make_zlib_decoder(RXIFRM *frm, void *ctx) {
